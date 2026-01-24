@@ -1,83 +1,248 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-  html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #111; color: #fff; font-family: monospace; overflow: hidden; touch-action: none; }
-  canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-  #score { position: absolute; top: 10px; left: 10px; font-size: 24px; color: #0ff; text-shadow: 0 0 5px #0ff; z-index: 10; }
-  #msg { position: absolute; top: 50%; width: 100%; text-align: center; font-size: 24px; z-index: 10; display: none; }
-</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #msg {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            z-index: 10;
+            display: none;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+    </style>
 </head>
+
 <body>
-<div id="score">0</div>
-<div id="msg">TAP TO START</div>
-<canvas id="gameCanvas"></canvas>
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-let playing = false; let score = 0; let targetColor = ''; let options = []; let timer = 0;
-const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'];
-function startGame() {
-  playing = true; score = 0; nextRound();
-  document.getElementById('msg').style.display = 'none';
-  loop();
-}
-function nextRound() {
-  targetColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  options = [...COLORS].sort(() => Math.random() - 0.5).slice(0, 4);
-  if (!options.includes(targetColor)) options[0] = targetColor;
-  options.sort(() => Math.random() - 0.5);
-  timer = 180; // ~3 seconds at 60fps
-}
-window.addEventListener('touchstart', handleInput);
-window.addEventListener('mousedown', handleInput);
-function handleInput(e) {
-  if (!playing) { startGame(); return; }
-  const x = (e.touches ? e.touches[0].clientX : e.clientX);
-  const y = (e.touches ? e.touches[0].clientY : e.clientY);
-  const btnW = canvas.width / 2; const btnH = 100;
-  const startY = canvas.height - 250;
-  options.forEach((col, i) => {
-    const bx = (i % 2) * btnW; const by = startY + Math.floor(i / 2) * btnH;
-    if (x > bx && x < bx + btnW && y > by && y < by + btnH) {
-      if (col === targetColor) { score += 10; nextRound(); }
-      else gameOver();
-    }
-  });
-}
-function update() {
-  timer--; if (timer <= 0) gameOver();
-  document.getElementById('score').innerText = Math.floor(score);
-}
-function draw() {
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = targetColor; ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/3, 80, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '20px monospace'; ctx.fillText('MATCH THIS', canvas.width/2, canvas.height/3 - 100);
-  const btnW = canvas.width / 2; const btnH = 100; const startY = canvas.height - 250;
-  options.forEach((col, i) => {
-    ctx.fillStyle = col; ctx.fillRect((i % 2) * btnW + 5, startY + Math.floor(i / 2) * btnH + 5, btnW - 10, btnH - 10);
-  });
-  ctx.fillStyle = '#0f0'; ctx.fillRect(0, 0, (timer / 180) * canvas.width, 5);
-}
-function gameOver() {
-  playing = false;
-  if (window.Android) window.Android.gameOver(Math.floor(score));
-  else { document.getElementById('msg').style.display = 'block'; document.getElementById('msg').innerText = "GAME OVER"; }
-}
-window.revive = function() {
-  playing = true; nextRound(); loop();
-};
-function loop() {
-  if (!playing) return; update(); draw(); requestAnimationFrame(loop);
-}
-document.getElementById('msg').style.display = 'block';
-</script>
+    <div id="score">0</div>
+    <div id="msg">TAP TO START</div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let playing = false;
+        let score = 0;
+        let targetColor = '';
+        let options = [];
+        let maxTime = 180;
+        let timer = 0;
+        const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'];
+
+        function startGame() {
+            playing = true;
+            score = 0;
+            maxTime = 180; // Reset Difficulty
+            nextRound();
+            document.getElementById('msg').style.display = 'none';
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        function nextRound() {
+            targetColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+            options = [...COLORS].sort(() => Math.random() - 0.5).slice(0, 4);
+
+            // Ensure target is present
+            if (!options.includes(targetColor)) options[0] = targetColor;
+            options.sort(() => Math.random() - 0.5);
+
+            // Difficulty: Speed up timer as score increases
+            let boost = Math.floor(score / 50) * 10;
+            let currentMax = 180 - boost;
+            if (currentMax < 60) currentMax = 60; // Min 1 second
+
+            timer = currentMax;
+        }
+
+        function handleInput(x, y) {
+            if (!playing) return;
+
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
+            const btnW = w / 2;
+            const btnH = 100;
+            const startY = h - 250;
+
+            options.forEach((col, i) => {
+                const glCol = i % 2;
+                const glRow = Math.floor(i / 2);
+
+                const bx = glCol * btnW;
+                const by = startY + glRow * btnH;
+
+                if (x > bx && x < bx + btnW && y > by && y < by + btnH) {
+                    if (col === targetColor) {
+                        score += 10;
+                        nextRound();
+                    }
+                    else gameOver();
+                }
+            });
+        }
+
+        window.addEventListener('touchstart', (e) => {
+            if (!playing) { startGame(); return; }
+            e.preventDefault();
+            const t = e.touches[0];
+            handleInput(t.clientX, t.clientY);
+        }, { passive: false });
+
+        window.addEventListener('mousedown', (e) => {
+            if (!playing) { startGame(); return; }
+            handleInput(e.clientX, e.clientY);
+        });
+
+        let lastTime = 0;
+        function loop(now) {
+            if (!playing) return;
+            // Frame independent timer? 
+            // Original logic was frame based (timer--). simple hacks:
+            timer--;
+            if (timer <= 0) gameOver();
+
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update() {
+            document.getElementById('score').innerText = Math.floor(score);
+        }
+
+        function draw() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, w, h);
+
+            // Target
+            ctx.fillStyle = targetColor;
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 3, 80, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.font = '20px monospace';
+            ctx.fillText('MATCH THIS', w / 2, h / 3 - 100);
+
+            // Buttons
+            const btnW = w / 2;
+            const btnH = 100;
+            const startY = h - 250;
+
+            options.forEach((col, i) => {
+                const glCol = i % 2;
+                const glRow = Math.floor(i / 2);
+
+                const x = glCol * btnW + 5;
+                const y = startY + glRow * btnH + 5;
+
+                ctx.fillStyle = col;
+                ctx.fillRect(x, y, btnW - 10, btnH - 10);
+            });
+
+            // Timer Bar
+            let ratio = timer / (180 - (Math.floor(score / 50) * 10)); // approximate max for visual
+            if (ratio > 1) ratio = 1;
+
+            ctx.fillStyle = '#0f0';
+            if (ratio < 0.3) ctx.fillStyle = '#f00';
+
+            ctx.fillRect(0, 0, ratio * w, 10);
+        }
+
+        function gameOver() {
+            playing = false;
+            if (window.Android && window.Android.gameOver) {
+                window.Android.gameOver(Math.floor(score));
+            } else {
+                document.getElementById('msg').style.display = 'block';
+                document.getElementById('msg').innerText = "GAME OVER";
+            }
+        }
+
+        window.revive = function () {
+            playing = true;
+            nextRound(); // New color
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        };
+    </script>
 </body>
+
 </html>
