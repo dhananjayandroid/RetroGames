@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+        }
+
+        #msg {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="score">0</div>
+    <div id="msg">TAP TO START</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game Vars
+        let playing = false;
+        let score = 0;
+        let speed = 5;
+        let playerX = 0; // -1 to 1 (lanes: -0.5, 0.5 effectively)
+        let obstacles = [];
+        let roadLines = [];
+        let lastTime = 0;
+
+        // Input
+        window.addEventListener('touchstart', handleInput);
+        window.addEventListener('mousedown', handleInput);
+
+        function handleInput(e) {
+            if (!playing) {
+                startGame();
+                return;
+            }
+            const x = (e.touches ? e.touches[0].clientX : e.clientX);
+            if (x < canvas.width / 2) playerX = -0.5;
+            else playerX = 0.5;
+        }
+
+        function startGame() {
+            playing = true;
+            score = 0;
+            speed = 10; // Slowed initial speed
+            obstacles = [];
+            roadLines = [];
+            document.getElementById('msg').style.display = 'none';
+            loop(0);
+        }
+
+        function update(dt) {
+            speed += 0.005; // Less acceleration
+            score += speed * 0.1;
+            document.getElementById('score').innerText = Math.floor(score);
+
+            // Road Lines (Pseudo 3D effect)
+            roadLines.push({ y: -10, h: 20 });
+            roadLines.forEach(l => {
+                l.y += speed * 2; // Move faster than objects for perception
+            });
+            roadLines = roadLines.filter(l => l.y < canvas.height);
+
+            // Spawn Obstacles
+            if (Math.random() < 0.02) {
+                obstacles.push({
+                    lane: Math.random() < 0.5 ? -0.5 : 0.5,
+                    y: -100,
+                    z: 0
+                });
+            }
+
+            // Update Obstacles
+            obstacles.forEach(o => {
+                o.y += speed;
+            });
+
+            // Collision
+            obstacles.forEach(o => {
+                if (o.y > canvas.height - 150 && o.y < canvas.height - 50) {
+                    if (o.lane === playerX) {
+                        gameOver();
+                    }
+                }
+            });
+
+            // Remove old
+            obstacles = obstacles.filter(o => o.y < canvas.height);
+        }
+
+        function draw() {
+            // Clear
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Road
+            const roadW = 300;
+            const cx = canvas.width / 2;
+
+            ctx.strokeStyle = '#f0f';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx - 10, 0);
+            ctx.lineTo(cx - roadW / 2, canvas.height);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx + 10, 0);
+            ctx.lineTo(cx + roadW / 2, canvas.height);
+            ctx.stroke();
+
+            // Moving Lines
+            ctx.fillStyle = '#333';
+            roadLines.forEach(l => {
+                // Perspective projection simplified
+                const scale = l.y / canvas.height;
+                const y = l.y;
+                const w = 10 + scale * 50;
+                ctx.fillRect(cx - w / 2, y, w, l.h);
+            });
+
+            // Player
+            const pX = cx + playerX * (roadW * 0.8); // 0.8 scale at bottom
+            const pY = canvas.height - 100;
+
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#0ff';
+            ctx.fillStyle = '#0ff';
+            ctx.beginPath();
+            ctx.moveTo(pX, pY); // Front
+            ctx.lineTo(pX - 30, pY + 60); // Back Left
+            ctx.lineTo(pX + 30, pY + 60); // Back Right
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Obstacles
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#f00';
+            ctx.fillStyle = '#f00';
+            obstacles.forEach(o => {
+                // Fake perspective
+                const progress = o.y / canvas.height;
+                const scale = 0.2 + progress * 0.8;
+                const laneOffset = o.lane * (roadW * progress * 1.5); // Spread out as they come closer? No simple linear
+
+                // Simple linear mapping for lane
+                // Top of road width ~20px, Bottom ~300px
+                const currentRoadW = 20 + (300 - 20) * progress;
+                const obX = cx + o.lane * (currentRoadW * 0.8);
+
+                const size = 60 * scale;
+                ctx.fillRect(obX - size / 2, o.y, size, size);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        function gameOver() {
+            playing = false;
+            if (window.Android) {
+                window.Android.gameOver(Math.floor(score));
+            } else {
+                document.getElementById('msg').style.display = 'block';
+                document.getElementById('msg').innerText = "GAME OVER";
+            }
+        }
+
+        // Revive
+        window.revive = function () {
+            obstacles = [];
+            playing = true;
+            loop(0);
+        }
+
+        function loop(t) {
+            if (!playing) return;
+            const dt = t - lastTime;
+            lastTime = t;
+            update(dt);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        document.getElementById('msg').style.display = 'block';
+
+    </script>
+</body>
+
+</html>
