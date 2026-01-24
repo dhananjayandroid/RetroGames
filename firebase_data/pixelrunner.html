@@ -1,72 +1,248 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-  html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #111; color: #fff; font-family: monospace; overflow: hidden; touch-action: none; }
-  canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-  #score { position: absolute; top: 10px; left: 10px; font-size: 24px; color: #0ff; text-shadow: 0 0 5px #0ff; z-index: 10; }
-  #msg { position: absolute; top: 50%; width: 100%; text-align: center; font-size: 24px; z-index: 10; display: none; }
-</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            background: #111;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #score {
+            position: absolute;
+            top: 10%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 30px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #msg {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            z-index: 10;
+            display: none;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+    </style>
 </head>
+
 <body>
-<div id="score">0</div>
-<div id="msg">TAP TO START</div>
-<canvas id="gameCanvas"></canvas>
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-let playing = false; let score = 0;
-let player = { y: 0, v: 0 }; let obstacles = []; let speed = 5;
-function startGame() {
-  playing = true; score = 0; speed = 5; obstacles = []; player = { y: canvas.height - 100, v: 0 };
-  document.getElementById('msg').style.display = 'none';
-  loop();
-}
-window.addEventListener('touchstart', (e) => {
-  if (!playing) startGame();
-  else if (player.y >= canvas.height - 100) player.v = -15;
-});
-window.addEventListener('mousedown', (e) => {
-  if (!playing) startGame();
-  else if (player.y >= canvas.height - 100) player.v = -15;
-});
-function update() {
-  speed += 0.005; score += speed * 0.1;
-  document.getElementById('score').innerText = Math.floor(score);
-  player.v += 0.8; player.y += player.v;
-  if (player.y > canvas.height - 100) { player.y = canvas.height - 100; player.v = 0; }
-  if (Math.random() < 0.02) obstacles.push({ x: canvas.width, w: 30, h: 30 + Math.random() * 40 });
-  obstacles.forEach(o => o.x -= speed);
-  obstacles.forEach(o => {
-    if (o.x < 90 && o.x + o.w > 50 && player.y + 10 > canvas.height - 100 - o.h) gameOver();
-  });
-  obstacles = obstacles.filter(o => o.x > -50);
-}
-function draw() {
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0ff'; ctx.fillRect(50, player.y - 40, 40, 40);
-  ctx.fillStyle = '#f00'; obstacles.forEach(o => ctx.fillRect(o.x, canvas.height - 100 - o.h, o.w, o.h));
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, canvas.height - 100); ctx.lineTo(canvas.width, canvas.height - 100); ctx.stroke();
-}
-function gameOver() {
-  playing = false;
-  if (window.Android) window.Android.gameOver(Math.floor(score));
-  else { document.getElementById('msg').style.display = 'block'; document.getElementById('msg').innerText = "GAME OVER"; }
-}
-window.revive = function() {
-  playing = true; obstacles = []; loop();
-};
-function loop() {
-  if (!playing) return; update(); draw(); requestAnimationFrame(loop);
-}
-document.getElementById('msg').style.display = 'block';
-</script>
+    <div id="score">0</div>
+    <div id="msg">TAP TO START</div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let dpr = window.devicePixelRatio || 1;
+
+        function resize() {
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Logic
+        let playing = false;
+        let score = 0;
+        let speed = 5;
+        let player = { y: 0, v: 0, w: 40, h: 40 };
+        let obstacles = [];
+        let loops = 0;
+
+        function startGame() {
+            playing = true;
+            score = 0;
+            speed = 6;
+            obstacles = [];
+            player.y = window.innerHeight - 100;
+            player.v = 0;
+            loops = 0;
+            document.getElementById('msg').style.display = 'none';
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        function jump() {
+            if (!playing) {
+                startGame();
+                return;
+            }
+            // GROUND CHECK: Only jump if on ground
+            if (player.y >= window.innerHeight - 100 - 5) {
+                player.v = -18; // Jump force
+            }
+        }
+
+        window.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
+        window.addEventListener('mousedown', (e) => { jump(); });
+
+        let lastTime = 0;
+        function loop(now) {
+            if (!playing) return;
+            let dt = (now - lastTime) / 16.66;
+            if (dt > 10) dt = 10;
+            lastTime = now;
+
+            update(dt);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update(dt) {
+            // Score & Difficulty
+            speed += 0.005 * dt;
+            score += speed * 0.1 * dt;
+            document.getElementById('score').innerText = Math.floor(score);
+
+            // Player Physics
+            player.v += 1.2 * dt; // Gravity
+            player.y += player.v * dt;
+
+            // Floor Limit
+            if (player.y > window.innerHeight - 100) {
+                player.y = window.innerHeight - 100;
+                player.v = 0;
+            }
+
+            // Obstacle Spawning
+            // Difficulty increases spawn chance
+            // Base chance 0.02 per frame at 60fps
+            let spawnChance = 0.01 + (score / 10000);
+            if (Math.random() < spawnChance) {
+                // Ensure min distance from last obstacle
+                if (obstacles.length === 0 || window.innerWidth - obstacles[obstacles.length - 1].x > 250) {
+                    let h = 30 + Math.random() * 50;
+                    obstacles.push({
+                        x: window.innerWidth,
+                        w: 30,
+                        h: h
+                    });
+                }
+            }
+
+            // Update Obstacles
+            for (let i = 0; i < obstacles.length; i++) {
+                let o = obstacles[i];
+                o.x -= speed * dt;
+
+                // Collision (AABB)
+                let floorY = window.innerHeight - 100;
+                let obsY = floorY - o.h;
+                let playerY = player.y - player.h; // Player draws upwards from y
+
+                // Fix player draw: player.y is BOTTOM position in logic?
+                // Check draw: ctx.fillRect(50, player.y - 40, 40, 40); -> Yes, player.y is bottom anchored visually.
+
+                if (o.x < 50 + player.w && o.x + o.w > 50 &&
+                    playerY + player.h > obsY) { // Player bottom > Obs top (Simple check since player is always above floor)
+
+                    gameOver();
+                }
+            }
+
+            obstacles = obstacles.filter(o => o.x > -100);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+            // Player
+            ctx.fillStyle = '#0ff';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
+            ctx.fillRect(50, player.y - player.h, player.w, player.h); // Draw UP from y
+
+            // Obstacles
+            ctx.fillStyle = '#f0f';
+            ctx.shadowColor = '#f0f';
+            let floorY = window.innerHeight - 100;
+            obstacles.forEach(o => {
+                ctx.fillRect(o.x, floorY - o.h, o.w, o.h);
+            });
+            ctx.shadowBlur = 0;
+
+            // Floor
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, floorY);
+            ctx.lineTo(window.innerWidth, floorY);
+            ctx.stroke();
+        }
+
+        function gameOver() {
+            playing = false;
+            if (window.Android && window.Android.gameOver) {
+                window.Android.gameOver(Math.floor(score));
+            } else {
+                document.getElementById('msg').style.display = 'block';
+                document.getElementById('msg').innerText = "GAME OVER";
+            }
+        }
+
+        window.revive = function () {
+            playing = true;
+            obstacles = [];
+            // Drop player safe
+            player.y = window.innerHeight - 100;
+            player.v = 0;
+            lastTime = performance.now();
+            requestAnimationFrame(loop);
+        };
+    </script>
 </body>
+
 </html>
