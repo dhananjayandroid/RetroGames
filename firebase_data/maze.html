@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+      overflow: hidden;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .stat {
+      font-size: 20px;
+      color: #0f0;
+      text-shadow: 0 0 5px #0f0;
+      margin-bottom: 5px;
+    }
+    #msg {
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      z-index: 10;
+      display: none;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="stat" id="score">Score: 0</div>
+    <div class="stat" id="level">Level: 1</div>
+  </div>
+  <div id="msg">TAP TO START</div>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let dpr = window.devicePixelRatio || 1;
+    
+    function resize() {
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.scale(dpr, dpr);
+    }
+    
+    window.addEventListener('resize', resize);
+    resize();
+    
+    // Game State
+    let playing = false;
+    let score = 0;
+    let level = 1;
+    let lastTime = 0;
+    const cellSize = 30;
+    const speed = 4;
+    
+    let maze = [];
+    let player = { x: 1, y: 1 };
+    let goal = { x: 0, y: 0 };
+    let mazeWidth = 0;
+    let mazeHeight = 0;
+    
+    // Maze generation using recursive backtracking
+    function generateMaze() {
+      mazeWidth = Math.floor(window.innerWidth / cellSize) | 1; // Odd numbers for maze
+      mazeHeight = Math.floor(window.innerHeight / cellSize) | 1;
+      
+      // Initialize maze with walls
+      maze = [];
+      for (let y = 0; y < mazeHeight; y++) {
+        maze[y] = [];
+        for (let x = 0; x < mazeWidth; x++) {
+          maze[y][x] = 1; // 1 = wall
+        }
+      }
+      
+      // Carve paths using recursive backtracking
+      function carvePath(x, y) {
+        maze[y][x] = 0; // 0 = path
+        
+        const directions = [
+          [0, -2], [2, 0], [0, 2], [-2, 0]
+        ];
+        
+        // Shuffle directions
+        for (let i = directions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [directions[i], directions[j]] = [directions[j], directions[i]];
+        }
+        
+        for (let [dx, dy] of directions) {
+          const nx = x + dx;
+          const ny = y + dy;
+          
+          if (nx > 0 && nx < mazeWidth && ny > 0 && ny < mazeHeight && maze[ny][nx] === 1) {
+            maze[y + dy/2][x + dx/2] = 0; // Carve wall between
+            carvePath(nx, ny);
+          }
+        }
+      }
+      
+      carvePath(1, 1);
+      
+      // Set player and goal
+      player.x = 1;
+      player.y = 1;
+      goal.x = mazeWidth - 2;
+      goal.y = mazeHeight - 2;
+      maze[goal.y][goal.x] = 0;
+    }
+    
+    function startGame() {
+      playing = true;
+      score = 0;
+      level = 1;
+      generateMaze();
+      document.getElementById('level').innerText = "Level: " + level;
+      document.getElementById('msg').style.display = 'none';
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+    
+    // Input Handling
+    const keys = {};
+    
+    window.addEventListener('touchstart', (e) => {
+      if (!playing) { startGame(); return; }
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+      
+      // Determine direction based on touch position
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      
+      if (x < centerX && Math.abs(y - centerY) < centerY * 0.3) keys['ArrowLeft'] = true;
+      if (x > centerX && Math.abs(y - centerY) < centerY * 0.3) keys['ArrowRight'] = true;
+      if (y < centerY && Math.abs(x - centerX) < centerX * 0.3) keys['ArrowUp'] = true;
+      if (y > centerY && Math.abs(x - centerX) < centerX * 0.3) keys['ArrowDown'] = true;
+    }, { passive: false });
+    
+    window.addEventListener('touchend', () => {
+      keys['ArrowLeft'] = false;
+      keys['ArrowRight'] = false;
+      keys['ArrowUp'] = false;
+      keys['ArrowDown'] = false;
+    }, { passive: false });
+    
+    window.addEventListener('keydown', (e) => {
+      if (!playing) { startGame(); return; }
+      keys[e.key] = true;
+    });
+    
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+    
+    function loop(now) {
+      if (!playing) return;
+      let dt = (now - lastTime) / 16.66;
+      if (dt > 10) dt = 10;
+      lastTime = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+    
+    function update(dt) {
+      // Handle movement
+      if (keys['ArrowUp'] && maze[player.y - 1] && maze[player.y - 1][player.x] === 0) {
+        player.y--;
+      }
+      if (keys['ArrowDown'] && maze[player.y + 1] && maze[player.y + 1][player.x] === 0) {
+        player.y++;
+      }
+      if (keys['ArrowLeft'] && maze[player.y][player.x - 1] === 0) {
+        player.x--;
+      }
+      if (keys['ArrowRight'] && maze[player.y][player.x + 1] === 0) {
+        player.x++;
+      }
+      
+      // Check if reached goal
+      if (player.x === goal.x && player.y === goal.y) {
+        level++;
+        score += 100;
+        document.getElementById('level').innerText = "Level: " + level;
+        generateMaze();
+      }
+      
+      document.getElementById('score').innerText = "Score: " + score;
+    }
+    
+    function draw() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      
+      // Draw maze
+      for (let y = 0; y < mazeHeight; y++) {
+        for (let x = 0; x < mazeWidth; x++) {
+          if (maze[y][x] === 1) {
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+      
+      // Draw goal
+      ctx.fillStyle = '#ff0';
+      ctx.fillRect(goal.x * cellSize, goal.y * cellSize, cellSize, cellSize);
+      
+      // Draw player
+      ctx.fillStyle = '#0ff';
+      ctx.beginPath();
+      ctx.arc(player.x * cellSize + cellSize / 2, player.y * cellSize + cellSize / 2, cellSize / 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    function gameOver() {
+      playing = false;
+      console.log("Game Over called. Score:", score);
+      if (window.Android && window.Android.gameOver) {
+        window.Android.gameOver(Math.floor(score));
+      } else {
+        document.getElementById('msg').style.display = 'block';
+        document.getElementById('msg').innerText = "GAME OVER";
+      }
+    }
+    
+    // Global Revive Function called by Android
+    window.revive = function() {
+      console.log("Revive called");
+      playing = true;
+      generateMaze();
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    };
+  </script>
+</body>
+</html>
