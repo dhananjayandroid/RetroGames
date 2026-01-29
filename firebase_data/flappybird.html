@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+      overflow: hidden;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .stat {
+      font-size: 20px;
+      color: #0f0;
+      text-shadow: 0 0 5px #0f0;
+      margin-bottom: 5px;
+    }
+    #msg {
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      text-align: center;
+      font-size: 24px;
+      z-index: 10;
+      display: none;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="stat" id="score">Score: 0</div>
+  </div>
+  <div id="msg">TAP TO START</div>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let dpr = window.devicePixelRatio || 1;
+    
+    function resize() {
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.scale(dpr, dpr);
+    }
+    
+    window.addEventListener('resize', resize);
+    resize();
+    
+    // Game State
+    let playing = false;
+    let score = 0;
+    let bird = { x: 100, y: 0, vy: 0, r: 12 };
+    let pipes = [];
+    let lastTime = 0;
+    const gravity = 0.6;
+    const jumpPower = -12;
+    const pipeGap = 150;
+    const pipeWidth = 80;
+    const pipeSpacing = 300;
+    let pipeCounter = 0;
+    
+    function startGame() {
+      playing = true;
+      score = 0;
+      bird.y = window.innerHeight / 2;
+      bird.vy = 0;
+      pipes = [];
+      pipeCounter = 0;
+      document.getElementById('msg').style.display = 'none';
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+    
+    // Input Handling
+    window.addEventListener('touchstart', (e) => {
+      if (!playing) { startGame(); return; }
+      bird.vy = jumpPower;
+    }, { passive: false });
+    
+    window.addEventListener('mousedown', (e) => {
+      if (!playing) { startGame(); return; }
+      bird.vy = jumpPower;
+    });
+    
+    function loop(now) {
+      if (!playing) return;
+      let dt = (now - lastTime) / 16.66;
+      if (dt > 10) dt = 10;
+      lastTime = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+    
+    function update(dt) {
+      // Bird physics
+      bird.vy += gravity * dt;
+      bird.y += bird.vy * dt;
+      
+      // Bounds check - game over if hits top or bottom
+      if (bird.y - bird.r < 0 || bird.y + bird.r > window.innerHeight) {
+        gameOver();
+        return;
+      }
+      
+      // Generate pipes
+      pipeCounter += dt;
+      if (pipeCounter > pipeSpacing / 200) {
+        const gapY = Math.random() * (window.innerHeight - pipeGap - 100) + 50;
+        pipes.push({ x: window.innerWidth, gapY: gapY });
+        pipeCounter = 0;
+      }
+      
+      // Update pipes and check collisions
+      for (let i = pipes.length - 1; i >= 0; i--) {
+        pipes[i].x -= 5 * dt;
+        
+        // Remove off-screen pipes
+        if (pipes[i].x + pipeWidth < 0) {
+          pipes.splice(i, 1);
+          continue;
+        }
+        
+        // Check collision with pipe
+        if (bird.x + bird.r > pipes[i].x && bird.x - bird.r < pipes[i].x + pipeWidth) {
+          if (bird.y - bird.r < pipes[i].gapY || bird.y + bird.r > pipes[i].gapY + pipeGap) {
+            gameOver();
+            return;
+          }
+        }
+        
+        // Score point
+        if (pipes[i].x + pipeWidth < bird.x && !pipes[i].scored) {
+          pipes[i].scored = true;
+          score += 1;
+        }
+      }
+      
+      document.getElementById('score').innerText = "Score: " + Math.floor(score);
+    }
+    
+    function draw() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      
+      // Draw bird
+      ctx.fillStyle = '#ffff00';
+      ctx.beginPath();
+      ctx.arc(bird.x, bird.y, bird.r, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw pipes
+      ctx.fillStyle = '#00ff00';
+      pipes.forEach(pipe => {
+        // Top pipe
+        ctx.fillRect(pipe.x, 0, pipeWidth, pipe.gapY);
+        // Bottom pipe
+        ctx.fillRect(pipe.x, pipe.gapY + pipeGap, pipeWidth, window.innerHeight - pipe.gapY - pipeGap);
+      });
+    }
+    
+    function gameOver() {
+      playing = false;
+      console.log("Game Over called. Score:", score);
+      if (window.Android && window.Android.gameOver) {
+        window.Android.gameOver(Math.floor(score));
+      } else {
+        document.getElementById('msg').style.display = 'block';
+        document.getElementById('msg').innerText = "GAME OVER";
+      }
+    }
+    
+    // Global Revive Function called by Android
+    window.revive = function() {
+      console.log("Revive called");
+      playing = true;
+      bird.y = window.innerHeight / 2;
+      bird.vy = 0;
+      pipes = [];
+      pipeCounter = 0;
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    };
+  </script>
+</body>
+</html>
