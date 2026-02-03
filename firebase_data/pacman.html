@@ -1,1 +1,384 @@
-<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Pacman</title><style>*{margin:0;padding:0}body{background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:Arial}canvas{border:2px solid #ffff00;background:#000;margin-bottom:20px}#controls{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}button{padding:15px 25px;background:#ffff00;color:#000;border:none;cursor:pointer;font-weight:bold;border-radius:5px}</style></head><body><canvas id='c' width='320' height='320'></canvas><div id='controls'><button id='u'>UP</button><button id='d'>DOWN</button><button id='l'>LEFT</button><button id='r'>RIGHT</button></div><script>const c=document.getElementById('c');const ctx=c.getContext('2d');const grid=20;let pacman={x:8,y:8,dir:{x:0,y:0}};let ghosts=[{x:5,y:5},{x:10,y:5},{x:5,y:10},{x:10,y:10}];let pellets=[];let score=0;for(let i=0;i<16;i++)for(let j=0;j<16;j++)if((i+j)%3!==0)pellets.push({x:i,y:j});function draw(){ctx.fillStyle='#000';ctx.fillRect(0,0,320,320);ctx.fillStyle='#ffff00';ctx.beginPath();ctx.arc(pacman.x*20+10,pacman.y*20+10,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff0000';ghosts.forEach(g=>{ctx.fillRect(g.x*20,g.y*20,20,20)});ctx.fillStyle='#fff';pellets.forEach(p=>{ctx.fillRect(p.x*20+8,p.y*20+8,4,4)});ctx.fillStyle='#fff';ctx.font='16px Arial';ctx.fillText('Score:'+score,10,335)}function update(){pacman.x+=pacman.dir.x;pacman.y+=pacman.dir.y;if(pacman.x<0)pacman.x=15;if(pacman.x>15)pacman.x=0;if(pacman.y<0)pacman.y=15;if(pacman.y>15)pacman.y=0;for(let i=0;i<pellets.length;i++){if(pellets[i].x===pacman.x&&pellets[i].y===pacman.y){pellets.splice(i,1);score+=10}}ghosts.forEach(g=>{g.x+=Math.random()>0.5?1:-1;if(g.x<0)g.x=0;if(g.x>15)g.x=15;g.y+=Math.random()>0.5?1:-1;if(g.y<0)g.y=0;if(g.y>15)g.y=15;if(g.x===pacman.x&&g.y===pacman.y){if(window.Android)window.Android.gameOver(score);alert('Game Over! Score:'+score)}});if(pellets.length===0){pellets=[];for(let i=0;i<16;i++)for(let j=0;j<16;j++)if((i+j)%2!==0)pellets.push({x:i,y:j})}draw()}document.getElementById('u').addEventListener('touchstart',()=>{pacman.dir={x:0,y:-1}});document.getElementById('d').addEventListener('touchstart',()=>{pacman.dir={x:0,y:1}});document.getElementById('l').addEventListener('touchstart',()=>{pacman.dir={x:-1,y:0}});document.getElementById('r').addEventListener('touchstart',()=>{pacman.dir={x:1,y:0}});window.revive=()=>location.reload();setInterval(update,200);draw()</script></body></html>
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pacman</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: monospace;
+            touch-action: none;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Game Area */
+        #game-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            background: #000;
+            border: 2px solid #222;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #score {
+            font-size: 20px;
+            color: #fff;
+            text-shadow: 0 0 5px #000;
+        }
+
+        #msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            pointer-events: none;
+            width: 80%;
+        }
+
+        /* Controls Area */
+        #controls-area {
+            height: 220px;
+            background: #111;
+            border-top: 2px solid #333;
+            display: flex;
+            justify-content: center;
+            /* Align D-Pad to center */
+            align-items: center;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        /* D-Pad Container */
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 5px;
+        }
+
+        .d-btn {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #aaa;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .d-btn:active {
+            background: #666;
+            color: #fff;
+            transform: scale(0.95);
+        }
+
+        /* Positioning */
+        #btn-up {
+            grid-column: 2;
+            grid-row: 1;
+            border-radius: 10px 10px 0 0;
+        }
+
+        #btn-left {
+            grid-column: 1;
+            grid-row: 2;
+            border-radius: 10px 0 0 10px;
+        }
+
+        #btn-right {
+            grid-column: 3;
+            grid-row: 2;
+            border-radius: 0 10px 10px 0;
+        }
+
+        #btn-down {
+            grid-column: 2;
+            grid-row: 3;
+            border-radius: 0 0 10px 10px;
+        }
+
+        /* Center piece decoration */
+        .d-center {
+            grid-column: 2;
+            grid-row: 2;
+            background: #222;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="ui">
+            <div id="score">Score: 0</div>
+        </div>
+        <div id="msg">Use D-Pad to Start</div>
+        <canvas id="c"></canvas>
+    </div>
+
+    <div id="controls-area">
+        <div class="d-pad">
+            <div class="d-btn" id="btn-up">▲</div>
+            <div class="d-btn" id="btn-left">◀</div>
+            <div class="d-center"></div>
+            <div class="d-btn" id="btn-right">▶</div>
+            <div class="d-btn" id="btn-down">▼</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const msgEl = document.getElementById('msg');
+        const gameContainer = document.getElementById('game-container');
+
+        let width, height, cellSize;
+        const GRID_W = 15;
+        const GRID_H = 15;
+
+        function resize() {
+            // Constrain canvas to the game container
+            const containerW = gameContainer.clientWidth;
+            const containerH = gameContainer.clientHeight;
+
+            // Should be square or aspect ratio fit
+            const size = Math.min(containerW, containerH) - 20; // 20px padding margin
+
+            width = size;
+            height = size;
+            canvas.width = width;
+            canvas.height = height;
+            cellSize = width / GRID_W;
+        }
+        window.addEventListener('resize', resize);
+        // Initial resize will happen after content load, usually strictly sequential in JS
+        setTimeout(resize, 0); // Brief delay ensuring layout
+
+        // Game State
+        const STATE = { READY: 0, PLAYING: 1, OVER: 2 };
+        let currentState = STATE.READY;
+
+        let pacman = { x: 7, y: 7, dir: { x: 0, y: 0 }, nextDir: { x: 0, y: 0 } };
+        let ghosts = [];
+        let pellets = [];
+        let score = 0;
+
+        function init() {
+            currentState = STATE.READY;
+            msgEl.style.display = 'block';
+            msgEl.innerHTML = "Tap Directions<br>to Start";
+            score = 0;
+            scoreEl.innerText = 'Score: 0';
+
+            pacman = { x: 7, y: 7, dir: { x: 0, y: 0 }, nextDir: { x: 0, y: 0 } };
+
+            ghosts = [
+                { x: 1, y: 1, color: 'red' },
+                { x: 13, y: 1, color: 'pink' },
+                { x: 1, y: 13, color: 'cyan' },
+                { x: 13, y: 13, color: 'orange' }
+            ];
+
+            pellets = [];
+            for (let i = 0; i < GRID_W; i++) {
+                for (let j = 0; j < GRID_H; j++) {
+                    if ((i + j) % 3 !== 0) {
+                        pellets.push({ x: i, y: j });
+                    }
+                }
+            }
+            resize(); // Ensure size is correct upon restart
+            draw();
+        }
+
+        function startGame(dx, dy) {
+            if (currentState === STATE.OVER) {
+                init();
+                return;
+            }
+
+            if (currentState === STATE.READY) {
+                currentState = STATE.PLAYING;
+                msgEl.style.display = 'none';
+            }
+
+            if (dx !== undefined && dy !== undefined) {
+                pacman.nextDir = { x: dx, y: dy };
+            }
+        }
+
+        function update() {
+            if (currentState !== STATE.PLAYING) return;
+
+            // Update Direction
+            if (pacman.nextDir.x !== 0 || pacman.nextDir.y !== 0) {
+                pacman.dir = pacman.nextDir;
+            }
+
+            // Move Pacman
+            pacman.x += pacman.dir.x;
+            pacman.y += pacman.dir.y;
+
+            // Wrap
+            if (pacman.x < 0) pacman.x = GRID_W - 1;
+            if (pacman.x >= GRID_W) pacman.x = 0;
+            if (pacman.y < 0) pacman.y = GRID_H - 1;
+            if (pacman.y >= GRID_H) pacman.y = 0;
+
+            // Eat Pellets
+            for (let i = 0; i < pellets.length; i++) {
+                if (pellets[i].x === pacman.x && pellets[i].y === pacman.y) {
+                    pellets.splice(i, 1);
+                    score += 10;
+                    scoreEl.innerText = 'Score: ' + score;
+                    break;
+                }
+            }
+
+            if (pellets.length === 0) {
+                init();
+            }
+
+            // Move Ghosts
+            ghosts.forEach(g => {
+                if (Math.random() > 0.3) {
+                    // Move towards player axis
+                    if (Math.abs(pacman.x - g.x) > Math.abs(pacman.y - g.y)) {
+                        g.x += Math.sign(pacman.x - g.x);
+                    } else {
+                        g.y += Math.sign(pacman.y - g.y);
+                    }
+                } else {
+                    // Random
+                    if (Math.random() > 0.5) g.x += Math.random() > 0.5 ? 1 : -1;
+                    else g.y += Math.random() > 0.5 ? 1 : -1;
+                }
+
+                if (g.x < 0) g.x = 0;
+                if (g.x >= GRID_W) g.x = GRID_W - 1;
+                if (g.y < 0) g.y = 0;
+                if (g.y >= GRID_H) g.y = GRID_H - 1;
+
+                if (g.x === pacman.x && g.y === pacman.y) {
+                    gameOver();
+                }
+            });
+            draw();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Use local vars for alignment to avoid offsets if canvas is exact fit
+            // cellSize is calculated from width/GRID_W, so offsets are 0 if good fit
+
+            // Pellets
+            ctx.fillStyle = '#fff';
+            pellets.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x * cellSize + cellSize / 2, p.y * cellSize + cellSize / 2, cellSize / 6, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Pacman
+            ctx.fillStyle = '#ff0';
+            ctx.beginPath();
+            ctx.arc(pacman.x * cellSize + cellSize / 2, pacman.y * cellSize + cellSize / 2, cellSize / 2.5, 0.2 * Math.PI, 1.8 * Math.PI);
+            ctx.lineTo(pacman.x * cellSize + cellSize / 2, pacman.y * cellSize + cellSize / 2);
+            ctx.fill();
+
+            // Ghosts
+            ghosts.forEach(g => {
+                ctx.fillStyle = g.color;
+                ctx.fillRect(g.x * cellSize + 2, g.y * cellSize + 2, cellSize - 4, cellSize - 4);
+            });
+        }
+
+        function gameOver() {
+            currentState = STATE.OVER;
+            msgEl.style.display = 'block';
+            msgEl.innerText = "GAME OVER\nTap D-Pad to Restart";
+            if (window.Android) window.Android.gameOver(score);
+        }
+
+        // D-Pad Input Handling
+        const buttons = {
+            'btn-up': { x: 0, y: -1 },
+            'btn-down': { x: 0, y: 1 },
+            'btn-left': { x: -1, y: 0 },
+            'btn-right': { x: 1, y: 0 }
+        };
+
+        Object.keys(buttons).forEach(id => {
+            const btn = document.getElementById(id);
+            const dir = buttons[id];
+
+            const handleInput = (e) => {
+                e.preventDefault();
+                startGame(dir.x, dir.y);
+            };
+
+            btn.addEventListener('touchstart', handleInput);
+            btn.addEventListener('mousedown', handleInput);
+        });
+
+        // Keyboard limit support
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') startGame(0, -1);
+            if (e.key === 'ArrowDown') startGame(0, 1);
+            if (e.key === 'ArrowLeft') startGame(-1, 0);
+            if (e.key === 'ArrowRight') startGame(1, 0);
+        });
+
+        window.revive = function () {
+            init();
+        };
+
+        // Loop
+        setInterval(update, 200);
+        init(); // initial call
+
+    </script>
+</body>
+
+</html>

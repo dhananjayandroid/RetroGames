@@ -1,210 +1,254 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Flappy Bird</title>
   <style>
-    html, body {
-      width: 100%;
-      height: 100%;
+    body {
       margin: 0;
-      padding: 0;
       background: #000;
-      color: #fff;
-      font-family: monospace;
       overflow: hidden;
+      font-family: monospace;
       touch-action: none;
+      user-select: none;
     }
+
     canvas {
       display: block;
-      width: 100%;
-      height: 100%;
       position: absolute;
       top: 0;
       left: 0;
+      width: 100%;
+      height: 100%;
     }
+
     #ui {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
     }
-    .stat {
-      font-size: 20px;
-      color: #0f0;
-      text-shadow: 0 0 5px #0f0;
-      margin-bottom: 5px;
+
+    #score {
+      position: absolute;
+      top: 10%;
+      width: 100%;
+      text-align: center;
+      font-size: 50px;
+      color: white;
+      font-weight: bold;
+      text-shadow: 2px 2px 0 #000;
     }
+
     #msg {
       position: absolute;
-      top: 50%;
+      top: 40%;
       width: 100%;
       text-align: center;
       font-size: 24px;
-      z-index: 10;
-      display: none;
-      transform: translateY(-50%);
-      pointer-events: none;
+      color: white;
+      font-weight: bold;
+      text-shadow: 1px 1px 0 #000;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px 0;
     }
   </style>
 </head>
+
 <body>
-  <div id="ui">
-    <div class="stat" id="score">Score: 0</div>
-  </div>
-  <div id="msg">TAP TO START</div>
   <canvas id="gameCanvas"></canvas>
+  <div id="ui">
+    <div id="score">0</div>
+    <div id="msg">Tap to Start</div>
+  </div>
+
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    let dpr = window.devicePixelRatio || 1;
-    
+    const scoreEl = document.getElementById('score');
+    const msgEl = document.getElementById('msg');
+
+    let width, height, scale;
+
     function resize() {
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
-      ctx.scale(dpr, dpr);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Standardize physics scale
+      scale = Math.min(width / 360, 1.5);
     }
-    
     window.addEventListener('resize', resize);
     resize();
-    
-    // Game State
-    let playing = false;
+
+    // Game Objects
+    const bird = {
+      x: 50, y: 150, r: 15,
+      vy: 0, gravity: 0.25, jump: 4.6
+    };
+
+    const pipes = {
+      items: [],
+      w: 52, gap: 140, dx: 2,
+      timer: 0
+    };
+
     let score = 0;
-    let bird = { x: 100, y: 0, vy: 0, r: 12 };
-    let pipes = [];
-    let lastTime = 0;
-    const gravity = 0.6;
-    const jumpPower = -12;
-    const pipeGap = 150;
-    const pipeWidth = 80;
-    const pipeSpacing = 300;
-    let pipeCounter = 0;
-    
-    function startGame() {
-      playing = true;
-      score = 0;
-      bird.y = window.innerHeight / 2;
+    let frames = 0;
+    const STATE = { READY: 0, PLAYING: 1, OVER: 2 };
+    let currentState = STATE.READY;
+
+    function reset() {
+      bird.y = height / 2;
       bird.vy = 0;
-      pipes = [];
-      pipeCounter = 0;
-      document.getElementById('msg').style.display = 'none';
-      lastTime = performance.now();
-      requestAnimationFrame(loop);
+      pipes.items = [];
+      score = 0;
+      frames = 0;
+      scoreEl.innerText = score;
+      currentState = STATE.READY;
+      msgEl.style.display = 'block';
+      msgEl.innerText = "Tap to Start";
     }
-    
-    // Input Handling
-    window.addEventListener('touchstart', (e) => {
-      if (!playing) { startGame(); return; }
-      bird.vy = jumpPower;
-    }, { passive: false });
-    
-    window.addEventListener('mousedown', (e) => {
-      if (!playing) { startGame(); return; }
-      bird.vy = jumpPower;
-    });
-    
-    function loop(now) {
-      if (!playing) return;
-      let dt = (now - lastTime) / 16.66;
-      if (dt > 10) dt = 10;
-      lastTime = now;
-      update(dt);
+
+    function flap() {
+      switch (currentState) {
+        case STATE.READY:
+          currentState = STATE.PLAYING;
+          msgEl.style.display = 'none';
+          bird.vy = -bird.jump * scale;
+          break;
+        case STATE.PLAYING:
+          bird.vy = -bird.jump * scale;
+          break;
+        case STATE.OVER:
+          // reset(); // For testing, maybe disable for prod if revival strictly via Android
+          break;
+      }
+    }
+
+    function update() {
+      if (currentState === STATE.READY) {
+        bird.y = height / 2 + Math.cos(frames / 15) * 10 * scale;
+      } else if (currentState === STATE.PLAYING) {
+        // Bird
+        bird.vy += bird.gravity * scale;
+        bird.y += bird.vy;
+
+        // Floor/Ceiling
+        if (bird.y + bird.r >= height) {
+          bird.y = height - bird.r;
+          gameOver();
+        }
+        if (bird.y - bird.r <= 0) {
+          bird.y = bird.r;
+          bird.vy = 0;
+        }
+
+        // Pipes
+        if (frames % 100 === 0) {
+          const maxTop = height - (pipes.gap * scale) - 50;
+          const top = Math.random() * (maxTop - 50) + 50;
+          pipes.items.push({
+            x: width,
+            top: top,
+            passed: false
+          });
+        }
+
+        for (let i = 0; i < pipes.items.length; i++) {
+          let p = pipes.items[i];
+          p.x -= pipes.dx * scale;
+
+          // Collision
+          let pipeW = pipes.w * scale;
+          let gapH = pipes.gap * scale;
+
+          // Horizontal
+          if (bird.x + bird.r > p.x && bird.x - bird.r < p.x + pipeW) {
+            // Vertical
+            if (bird.y - bird.r < p.top || bird.y + bird.r > p.top + gapH) {
+              gameOver();
+            }
+          }
+
+          // Score
+          if (p.x + pipeW < bird.x && !p.passed) {
+            score++;
+            scoreEl.innerText = score;
+            p.passed = true;
+          }
+
+          // Remove
+          if (p.x + pipeW < 0) {
+            pipes.items.shift();
+            i--;
+          }
+        }
+      }
+      frames++;
+    }
+
+    function draw() {
+      // Bg
+      ctx.fillStyle = '#70c5ce';
+      ctx.fillRect(0, 0, width, height);
+
+      // Pipes
+      ctx.fillStyle = '#73bf2e';
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 2;
+      let pipeW = pipes.w * scale;
+      let gapH = pipes.gap * scale;
+
+      pipes.items.forEach(p => {
+        // Top
+        ctx.fillRect(p.x, 0, pipeW, p.top);
+        ctx.strokeRect(p.x, 0, pipeW, p.top);
+        // Bottom
+        ctx.fillRect(p.x, p.top + gapH, pipeW, height - (p.top + gapH));
+        ctx.strokeRect(p.x, p.top + gapH, pipeW, height - (p.top + gapH));
+      });
+
+      // Bird
+      ctx.fillStyle = '#ff0';
+      ctx.beginPath();
+      ctx.arc(bird.x, bird.y, bird.r * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function loop() {
+      update();
       draw();
       requestAnimationFrame(loop);
     }
-    
-    function update(dt) {
-      // Bird physics
-      bird.vy += gravity * dt;
-      bird.y += bird.vy * dt;
-      
-      // Bounds check - game over if hits top or bottom
-      if (bird.y - bird.r < 0 || bird.y + bird.r > window.innerHeight) {
-        gameOver();
-        return;
-      }
-      
-      // Generate pipes
-      pipeCounter += dt;
-      if (pipeCounter > pipeSpacing / 200) {
-        const gapY = Math.random() * (window.innerHeight - pipeGap - 100) + 50;
-        pipes.push({ x: window.innerWidth, gapY: gapY });
-        pipeCounter = 0;
-      }
-      
-      // Update pipes and check collisions
-      for (let i = pipes.length - 1; i >= 0; i--) {
-        pipes[i].x -= 5 * dt;
-        
-        // Remove off-screen pipes
-        if (pipes[i].x + pipeWidth < 0) {
-          pipes.splice(i, 1);
-          continue;
-        }
-        
-        // Check collision with pipe
-        if (bird.x + bird.r > pipes[i].x && bird.x - bird.r < pipes[i].x + pipeWidth) {
-          if (bird.y - bird.r < pipes[i].gapY || bird.y + bird.r > pipes[i].gapY + pipeGap) {
-            gameOver();
-            return;
-          }
-        }
-        
-        // Score point
-        if (pipes[i].x + pipeWidth < bird.x && !pipes[i].scored) {
-          pipes[i].scored = true;
-          score += 1;
-        }
-      }
-      
-      document.getElementById('score').innerText = "Score: " + Math.floor(score);
-    }
-    
-    function draw() {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-      
-      // Draw bird
-      ctx.fillStyle = '#ffff00';
-      ctx.beginPath();
-      ctx.arc(bird.x, bird.y, bird.r, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Draw pipes
-      ctx.fillStyle = '#00ff00';
-      pipes.forEach(pipe => {
-        // Top pipe
-        ctx.fillRect(pipe.x, 0, pipeWidth, pipe.gapY);
-        // Bottom pipe
-        ctx.fillRect(pipe.x, pipe.gapY + pipeGap, pipeWidth, window.innerHeight - pipe.gapY - pipeGap);
-      });
-    }
-    
+
     function gameOver() {
-      playing = false;
-      console.log("Game Over called. Score:", score);
-      if (window.Android && window.Android.gameOver) {
-        window.Android.gameOver(Math.floor(score));
-      } else {
-        document.getElementById('msg').style.display = 'block';
-        document.getElementById('msg').innerText = "GAME OVER";
-      }
+      currentState = STATE.OVER;
+      msgEl.style.display = 'block';
+      msgEl.innerText = "GAME OVER";
+      if (window.Android) window.Android.gameOver(score);
     }
-    
-    // Global Revive Function called by Android
-    window.revive = function() {
-      console.log("Revive called");
-      playing = true;
-      bird.y = window.innerHeight / 2;
+
+    window.revive = function () {
+      currentState = STATE.PLAYING;
+      msgEl.style.display = 'none';
+      bird.y = height / 2;
       bird.vy = 0;
-      pipes = [];
-      pipeCounter = 0;
-      lastTime = performance.now();
-      requestAnimationFrame(loop);
+      pipes.items = [];
     };
+
+    // Input
+    window.addEventListener('mousedown', (e) => { e.preventDefault(); flap(); });
+    window.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); }, { passive: false });
+
+    reset();
+    loop();
   </script>
 </body>
+
 </html>

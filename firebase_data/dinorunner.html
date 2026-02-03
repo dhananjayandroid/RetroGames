@@ -1,1 +1,242 @@
-<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Dino Runner</title><style>*{margin:0;padding:0}body{background:linear-gradient(to bottom,#87ceeb,#e0f6ff);display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:Arial}#game{width:320px;height:400px;background:linear-gradient(to bottom,#87ceeb,#e0f6ff);position:relative;border:2px solid #333;overflow:hidden}#dino{width:30px;height:40px;background:#8B4513;position:absolute;bottom:50px;left:50px}#obstacle{width:20px;height:50px;background:#333;position:absolute;bottom:30px;right:0}#score{position:absolute;top:10px;left:10px;color:#333;font-size:20px;font-weight:bold}button{margin-top:20px;padding:15px 30px;background:#4CAF50;color:white;border:none;cursor:pointer;font-size:16px;border-radius:5px}</style></head><body><div id='game'><div id='score'>Score: 0</div><div id='dino'></div><div id='obstacle'></div></div><button onclick='location.reload()'>Restart</button><script>const dino=document.getElementById('dino');const obstacle=document.getElementById('obstacle');const score=document.getElementById('score');const game=document.getElementById('game');let dinoY=50;let obstacleX=320;let isJumping=false;let jumpPower=0;let scoreVal=0;function jump(){if(!isJumping){isJumping=true;jumpPower=15}}function update(){if(isJumping){dinoY-=jumpPower;jumpPower-=0.8;if(dinoY>=50){dinoY=50;isJumping=false}}dino.style.bottom=dinoY+'px';obstacleX-=8;if(obstacleX<-20){obstacleX=320;scoreVal+=10;score.textContent='Score: '+scoreVal}obstacle.style.right=(320-obstacleX)+'px';if(obstacleX>50&&obstacleX<80&&dinoY<50){if(window.Android)window.Android.gameOver(scoreVal);alert('Game Over! Score: '+scoreVal)}}document.addEventListener('touchstart',jump);window.revive=()=>location.reload();setInterval(update,30)</script></body></html>
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dino Runner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #87ceeb, #e0f6ff);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        /* Container scales based on viewport */
+        #game-container {
+            width: 320px;
+            height: 400px;
+            position: relative;
+            transform-origin: center center;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87ceeb, #e0f6ff);
+            /* Border for visual debug, optional */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        #ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 20px;
+            background: #654321;
+        }
+
+        #dino {
+            width: 40px;
+            height: 40px;
+            background: #8B4513;
+            position: absolute;
+            bottom: 20px;
+            /* On ground */
+            left: 50px;
+        }
+
+        #obstacle {
+            width: 25px;
+            height: 50px;
+            background: #333;
+            position: absolute;
+            bottom: 20px;
+            /* On ground */
+            right: -30px;
+            /* Start offscreen */
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            font-size: 30px;
+            color: #333;
+            font-weight: bold;
+            display: none;
+            transform: translateY(-50%);
+            text-shadow: 0 0 5px white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="game-container">
+        <div id="score">Score: 0</div>
+        <div id="message">Tap to Jump</div>
+        <div id="dino"></div>
+        <div id="obstacle"></div>
+        <div id="ground"></div>
+    </div>
+
+    <script>
+        const dino = document.getElementById('dino');
+        const obstacle = document.getElementById('obstacle');
+        const scoreEl = document.getElementById('score');
+        const msgEl = document.getElementById('message');
+        const container = document.getElementById('game-container');
+
+        // Scaling logic to fit screen
+        function resize() {
+            const scale = Math.min(
+                window.innerWidth / 320,
+                window.innerHeight / 400
+            );
+            container.style.transform = `scale(${scale})`;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Game State
+        let isJumping = false;
+        let jumpTimer = 0;
+        let score = 0;
+        let state = 'READY'; // READY, PLAYING, OVER
+        let animationId;
+
+        let dinoY = 0;
+        let dinoVel = 0;
+        let obstaclePos = 320;
+        const gravity = 1.2; // Gravity per frame
+        const jumpForce = 18;
+        const speed = 7;
+
+        function init() {
+            state = 'READY';
+            msgEl.style.display = 'block';
+            msgEl.innerText = 'Tap to Start';
+            score = 0;
+            scoreEl.innerText = 'Score: 0';
+
+            dinoY = 0;
+            dinoVel = 0;
+            obstaclePos = 400; // Push further back
+
+            dino.style.bottom = (20 + dinoY) + 'px';
+            obstacle.style.right = (320 - obstaclePos) + 'px'; // Inverted Logic in CSS? 
+            // Better to use left positioning for logic consistency
+            // CSS: right: -30px.
+            // Let's control 'left' via JS for obstacle to be clearer.
+            // Changing CSS for obstacle to use left
+            obstacle.style.left = obstaclePos + 'px';
+            obstacle.style.right = 'auto';
+        }
+
+        function jump() {
+            if (state === 'READY') {
+                state = 'PLAYING';
+                msgEl.style.display = 'none';
+                loop();
+            } else if (state === 'PLAYING') {
+                if (dinoY <= 0) { // Only jump if on ground
+                    dinoVel = jumpForce;
+                    isJumping = true;
+                }
+            } else if (state === 'OVER') {
+                // Ignore input on game over, wait for revive or user to reload manually? 
+                // Pipehopper allowed direct restart? No, revive clears it. 
+                // Let's allow tap to restart locally for testing
+                init();
+            }
+        }
+
+        function update() {
+            if (state !== 'PLAYING') return;
+
+            // Dino Physics
+            dinoY += dinoVel;
+            dinoVel -= gravity;
+
+            if (dinoY < 0) {
+                dinoY = 0;
+                dinoVel = 0;
+                isJumping = false;
+            }
+            dino.style.bottom = (20 + dinoY) + 'px';
+
+            // Obstacle Movement
+            obstaclePos -= speed + (score * 0.01); // Speed increase
+            if (obstaclePos < -30) {
+                obstaclePos = 350 + Math.random() * 100; // Reset
+                score++;
+                scoreEl.innerText = 'Score: ' + score;
+            }
+            obstacle.style.left = obstaclePos + 'px';
+
+            // Collision
+            // Dino: left 50, width 40. => x range [50, 90]
+            // Obstacle: x at obstaclePos, width 25.
+            if (obstaclePos < 90 && obstaclePos + 25 > 50) {
+                // Horizontal overlap
+                // Check vertical. Obstacle height 50. Dino Bottom at 20 + dinoY. 
+                // Collision if dino is low enough
+                if (dinoY < 40) { // Simple hit box
+                    gameOver();
+                }
+            }
+        }
+
+        function loop() {
+            if (state !== 'PLAYING') return;
+            update();
+            requestAnimationFrame(loop);
+        }
+
+        function gameOver() {
+            state = 'OVER';
+            msgEl.style.display = 'block';
+            msgEl.innerText = "Game Over!";
+            if (window.Android) window.Android.gameOver(score);
+        }
+
+        // Global Revive
+        window.revive = function () {
+            state = 'PLAYING';
+            msgEl.style.display = 'none';
+            // Reset safe positions
+            dinoY = 0;
+            dinoVel = 0;
+            obstaclePos = 400; // Move obstacle away
+            loop();
+        };
+
+        // Inputs
+        document.body.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+        document.body.addEventListener('mousedown', (e) => { e.preventDefault(); jump(); });
+        document.body.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') jump();
+        });
+
+        init();
+
+    </script>
+</body>
+
+</html>

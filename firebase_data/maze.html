@@ -1,27 +1,43 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Maze</title>
   <style>
-    html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      background: #000;
-      color: #fff;
-      font-family: monospace;
-      overflow: hidden;
-      touch-action: none;
+    * {
+      box-sizing: border-box;
     }
+
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: monospace;
+      touch-action: none;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #game-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
     canvas {
       display: block;
       width: 100%;
       height: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
+      background: #000;
     }
+
     #ui {
       position: absolute;
       top: 10px;
@@ -29,238 +45,305 @@
       z-index: 10;
       pointer-events: none;
     }
+
     .stat {
       font-size: 20px;
       color: #0f0;
       text-shadow: 0 0 5px #0f0;
       margin-bottom: 5px;
     }
+
     #msg {
       position: absolute;
       top: 50%;
       width: 100%;
       text-align: center;
       font-size: 24px;
+      color: #fff;
       z-index: 10;
       display: none;
       transform: translateY(-50%);
       pointer-events: none;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 20px 0;
+    }
+
+    /* Controls Area */
+    #controls-area {
+      height: 220px;
+      background: #111;
+      border-top: 2px solid #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      flex-shrink: 0;
+    }
+
+    .d-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-template-rows: repeat(3, 60px);
+      gap: 5px;
+    }
+
+    .d-btn {
+      background: #222;
+      border: 2px solid #0f0;
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      color: #0f0;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      transition: all 0.1s;
+    }
+
+    .d-btn:active {
+      background: #0f0;
+      color: #000;
+      transform: scale(0.95);
+    }
+
+    #btn-up {
+      grid-column: 2;
+      grid-row: 1;
+      border-radius: 10px 10px 0 0;
+    }
+
+    #btn-left {
+      grid-column: 1;
+      grid-row: 2;
+      border-radius: 10px 0 0 10px;
+    }
+
+    #btn-right {
+      grid-column: 3;
+      grid-row: 2;
+      border-radius: 0 10px 10px 0;
+    }
+
+    #btn-down {
+      grid-column: 2;
+      grid-row: 3;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .d-center {
+      grid-column: 2;
+      grid-row: 2;
+      background: #111;
+      border-radius: 5px;
     }
   </style>
 </head>
+
 <body>
-  <div id="ui">
-    <div class="stat" id="score">Score: 0</div>
-    <div class="stat" id="level">Level: 1</div>
+  <div id="game-container">
+    <div id="ui">
+      <div class="stat" id="score">Score: 0</div>
+      <div class="stat" id="level">Level: 1</div>
+    </div>
+    <div id="msg">Tap Directions to Move</div>
+    <canvas id="gameCanvas"></canvas>
   </div>
-  <div id="msg">TAP TO START</div>
-  <canvas id="gameCanvas"></canvas>
+
+  <div id="controls-area">
+    <div class="d-pad">
+      <div class="d-btn" id="btn-up">▲</div>
+      <div class="d-btn" id="btn-left">◀</div>
+      <div class="d-center"></div>
+      <div class="d-btn" id="btn-right">▶</div>
+      <div class="d-btn" id="btn-down">▼</div>
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    let dpr = window.devicePixelRatio || 1;
-    
+    const gameContainer = document.getElementById('game-container');
+
+    let width, height;
+    let cellSize = 40;
+
     function resize() {
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
-      ctx.scale(dpr, dpr);
+      const containerW = gameContainer.clientWidth;
+      const containerH = gameContainer.clientHeight;
+
+      width = containerW;
+      height = containerH;
+      canvas.width = width;
+      canvas.height = height;
+
+      if (width < 400) cellSize = 30;
+      else cellSize = 40;
     }
-    
     window.addEventListener('resize', resize);
-    resize();
-    
+    setTimeout(resize, 0); // Brief delay ensuring layout
+
     // Game State
-    let playing = false;
-    let score = 0;
+    let scoring = 0;
     let level = 1;
-    let lastTime = 0;
-    const cellSize = 30;
-    const speed = 4;
-    
     let maze = [];
     let player = { x: 1, y: 1 };
     let goal = { x: 0, y: 0 };
     let mazeWidth = 0;
     let mazeHeight = 0;
-    
-    // Maze generation using recursive backtracking
+
+    const STATE = { READY: 0, PLAYING: 1, OVER: 2 };
+    let currentState = STATE.READY;
+
     function generateMaze() {
-      mazeWidth = Math.floor(window.innerWidth / cellSize) | 1; // Odd numbers for maze
-      mazeHeight = Math.floor(window.innerHeight / cellSize) | 1;
-      
-      // Initialize maze with walls
+      mazeWidth = Math.floor(width / cellSize);
+      if (mazeWidth % 2 === 0) mazeWidth--;
+      mazeHeight = Math.floor(height / cellSize);
+      if (mazeHeight % 2 === 0) mazeHeight--;
+
       maze = [];
       for (let y = 0; y < mazeHeight; y++) {
         maze[y] = [];
         for (let x = 0; x < mazeWidth; x++) {
-          maze[y][x] = 1; // 1 = wall
+          maze[y][x] = 1;
         }
       }
-      
-      // Carve paths using recursive backtracking
+
       function carvePath(x, y) {
-        maze[y][x] = 0; // 0 = path
-        
+        maze[y][x] = 0;
+
         const directions = [
           [0, -2], [2, 0], [0, 2], [-2, 0]
         ];
-        
-        // Shuffle directions
+
         for (let i = directions.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [directions[i], directions[j]] = [directions[j], directions[i]];
         }
-        
+
         for (let [dx, dy] of directions) {
           const nx = x + dx;
           const ny = y + dy;
-          
+
           if (nx > 0 && nx < mazeWidth && ny > 0 && ny < mazeHeight && maze[ny][nx] === 1) {
-            maze[y + dy/2][x + dx/2] = 0; // Carve wall between
+            maze[y + dy / 2][x + dx / 2] = 0;
             carvePath(nx, ny);
           }
         }
       }
-      
+
       carvePath(1, 1);
-      
-      // Set player and goal
+
       player.x = 1;
       player.y = 1;
+
       goal.x = mazeWidth - 2;
       goal.y = mazeHeight - 2;
       maze[goal.y][goal.x] = 0;
     }
-    
-    function startGame() {
-      playing = true;
-      score = 0;
-      level = 1;
+
+    function init() {
+      currentState = STATE.READY;
+      document.getElementById('msg').style.display = 'block';
+      document.getElementById('msg').innerText = "Use D-Pad to Start";
       generateMaze();
-      document.getElementById('level').innerText = "Level: " + level;
-      document.getElementById('msg').style.display = 'none';
-      lastTime = performance.now();
-      requestAnimationFrame(loop);
-    }
-    
-    // Input Handling
-    const keys = {};
-    
-    window.addEventListener('touchstart', (e) => {
-      if (!playing) { startGame(); return; }
-      const touch = e.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      const x = touch.clientX - rect.left;
-      const y = touch.clientY - rect.top;
-      
-      // Determine direction based on touch position
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      
-      if (x < centerX && Math.abs(y - centerY) < centerY * 0.3) keys['ArrowLeft'] = true;
-      if (x > centerX && Math.abs(y - centerY) < centerY * 0.3) keys['ArrowRight'] = true;
-      if (y < centerY && Math.abs(x - centerX) < centerX * 0.3) keys['ArrowUp'] = true;
-      if (y > centerY && Math.abs(x - centerX) < centerX * 0.3) keys['ArrowDown'] = true;
-    }, { passive: false });
-    
-    window.addEventListener('touchend', () => {
-      keys['ArrowLeft'] = false;
-      keys['ArrowRight'] = false;
-      keys['ArrowUp'] = false;
-      keys['ArrowDown'] = false;
-    }, { passive: false });
-    
-    window.addEventListener('keydown', (e) => {
-      if (!playing) { startGame(); return; }
-      keys[e.key] = true;
-    });
-    
-    window.addEventListener('keyup', (e) => {
-      keys[e.key] = false;
-    });
-    
-    function loop(now) {
-      if (!playing) return;
-      let dt = (now - lastTime) / 16.66;
-      if (dt > 10) dt = 10;
-      lastTime = now;
-      update(dt);
       draw();
-      requestAnimationFrame(loop);
     }
-    
-    function update(dt) {
-      // Handle movement
-      if (keys['ArrowUp'] && maze[player.y - 1] && maze[player.y - 1][player.x] === 0) {
-        player.y--;
+
+    function startGame() {
+      if (currentState === STATE.PLAYING) return;
+      currentState = STATE.PLAYING;
+      document.getElementById('msg').style.display = 'none';
+      scoring = 0;
+      level = 1;
+      document.getElementById('score').innerText = "Score: " + scoring;
+      document.getElementById('level').innerText = "Level: " + level;
+    }
+
+    function move(dx, dy) {
+      if (currentState !== STATE.PLAYING) {
+        startGame();
+        return;
       }
-      if (keys['ArrowDown'] && maze[player.y + 1] && maze[player.y + 1][player.x] === 0) {
-        player.y++;
+
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+
+      if (maze[ny] && maze[ny][nx] === 0) {
+        player.x = nx;
+        player.y = ny;
+        checkWin();
       }
-      if (keys['ArrowLeft'] && maze[player.y][player.x - 1] === 0) {
-        player.x--;
-      }
-      if (keys['ArrowRight'] && maze[player.y][player.x + 1] === 0) {
-        player.x++;
-      }
-      
-      // Check if reached goal
+      draw();
+    }
+
+    function checkWin() {
       if (player.x === goal.x && player.y === goal.y) {
         level++;
-        score += 100;
+        scoring += 100;
         document.getElementById('level').innerText = "Level: " + level;
-        generateMaze();
+        document.getElementById('score').innerText = "Score: " + scoring;
+        generateMaze(); // New Maze
       }
-      
-      document.getElementById('score').innerText = "Score: " + score;
     }
-    
+
     function draw() {
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-      
-      // Draw maze
+      ctx.fillRect(0, 0, width, height);
+
+      const offsetX = (width - mazeWidth * cellSize) / 2;
+      const offsetY = (height - mazeHeight * cellSize) / 2;
+
       for (let y = 0; y < mazeHeight; y++) {
         for (let x = 0; x < mazeWidth; x++) {
           if (maze[y][x] === 1) {
             ctx.fillStyle = '#0f0';
-            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            ctx.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
           }
         }
       }
-      
-      // Draw goal
+
       ctx.fillStyle = '#ff0';
-      ctx.fillRect(goal.x * cellSize, goal.y * cellSize, cellSize, cellSize);
-      
-      // Draw player
+      ctx.fillRect(offsetX + goal.x * cellSize + 5, offsetY + goal.y * cellSize + 5, cellSize - 10, cellSize - 10);
+
       ctx.fillStyle = '#0ff';
       ctx.beginPath();
-      ctx.arc(player.x * cellSize + cellSize / 2, player.y * cellSize + cellSize / 2, cellSize / 3, 0, Math.PI * 2);
+      ctx.arc(
+        offsetX + player.x * cellSize + cellSize / 2,
+        offsetY + player.y * cellSize + cellSize / 2,
+        cellSize / 3, 0, Math.PI * 2
+      );
       ctx.fill();
     }
-    
-    function gameOver() {
-      playing = false;
-      console.log("Game Over called. Score:", score);
-      if (window.Android && window.Android.gameOver) {
-        window.Android.gameOver(Math.floor(score));
-      } else {
-        document.getElementById('msg').style.display = 'block';
-        document.getElementById('msg').innerText = "GAME OVER";
-      }
-    }
-    
-    // Global Revive Function called by Android
-    window.revive = function() {
-      console.log("Revive called");
-      playing = true;
-      generateMaze();
-      lastTime = performance.now();
-      requestAnimationFrame(loop);
+
+    // D-Pad Inputs
+    const buttons = {
+      'btn-up': { x: 0, y: -1 },
+      'btn-down': { x: 0, y: 1 },
+      'btn-left': { x: -1, y: 0 },
+      'btn-right': { x: 1, y: 0 }
     };
+
+    Object.keys(buttons).forEach(id => {
+      const btn = document.getElementById(id);
+      const dir = buttons[id];
+
+      const handleInput = (e) => {
+        e.preventDefault();
+        move(dir.x, dir.y);
+      };
+
+      btn.addEventListener('touchstart', handleInput);
+      btn.addEventListener('mousedown', handleInput);
+    });
+
+    window.revive = function () {
+      init();
+    };
+
+    init();
   </script>
 </body>
+
 </html>
