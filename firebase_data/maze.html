@@ -197,9 +197,10 @@
     let currentState = STATE.READY;
 
     function generateMaze() {
-      mazeWidth = Math.floor(width / cellSize);
+      let currentCellSize = Math.max(10, cellSize - (level - 1) * 2);
+      mazeWidth = Math.floor(width / currentCellSize);
       if (mazeWidth % 2 === 0) mazeWidth--;
-      mazeHeight = Math.floor(height / cellSize);
+      mazeHeight = Math.floor(height / currentCellSize);
       if (mazeHeight % 2 === 0) mazeHeight--;
 
       maze = [];
@@ -292,27 +293,28 @@
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, width, height);
 
-      const offsetX = (width - mazeWidth * cellSize) / 2;
-      const offsetY = (height - mazeHeight * cellSize) / 2;
+      let currentCellSize = Math.max(10, cellSize - (level - 1) * 2);
+      const offsetX = (width - mazeWidth * currentCellSize) / 2;
+      const offsetY = (height - mazeHeight * currentCellSize) / 2;
 
       for (let y = 0; y < mazeHeight; y++) {
         for (let x = 0; x < mazeWidth; x++) {
           if (maze[y][x] === 1) {
             ctx.fillStyle = '#0f0';
-            ctx.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
+            ctx.fillRect(offsetX + x * currentCellSize, offsetY + y * currentCellSize, currentCellSize, currentCellSize);
           }
         }
       }
 
       ctx.fillStyle = '#ff0';
-      ctx.fillRect(offsetX + goal.x * cellSize + 5, offsetY + goal.y * cellSize + 5, cellSize - 10, cellSize - 10);
+      ctx.fillRect(offsetX + goal.x * currentCellSize + 2, offsetY + goal.y * currentCellSize + 2, currentCellSize - 4, currentCellSize - 4);
 
       ctx.fillStyle = '#0ff';
       ctx.beginPath();
       ctx.arc(
-        offsetX + player.x * cellSize + cellSize / 2,
-        offsetY + player.y * cellSize + cellSize / 2,
-        cellSize / 3, 0, Math.PI * 2
+        offsetX + player.x * currentCellSize + currentCellSize / 2,
+        offsetY + player.y * currentCellSize + currentCellSize / 2,
+        currentCellSize / 3, 0, Math.PI * 2
       );
       ctx.fill();
     }
@@ -342,7 +344,11 @@
       init();
     };
 
-    init();
+    // Start logic
+    setTimeout(() => {
+      resize();
+      init();
+    }, 100);
   </script>
 </body>
 
